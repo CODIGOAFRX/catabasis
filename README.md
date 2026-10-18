@@ -38,5 +38,6 @@ npm run dev       # sirve dist con Wrangler en local
 
 ## Despliegue
 
-Worker de Cloudflare con archivos estáticos (`wrangler.jsonc`), enganchado a la ruta `pedrogomez.dev/proyecto/catabasis`: `npm run deploy`.
+Worker de Cloudflare con archivos estáticos (`wrangler.jsonc`), enganchado a la ruta `pedrogomez.dev/proyecto/catabasis`.
+Cloudflare Workers Builds está conectado a este repositorio: cada push a `main` ejecuta `npm run build` y `npx wrangler deploy`.
 GitHub Actions (`.github/workflows/ci.yml`) comprueba y construye en cada push y pull request.
