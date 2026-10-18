@@ -1,0 +1,18 @@
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "catabasis",
+  "compatibility_date": "2026-10-18",
+  "workers_dev": true,
+  // Solo archivos estáticos: el bestiario, el osario y el herbolario funcionan en el navegador.
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
+  },
+  "routes": [
+    { "pattern": "pedrogomez.dev/proyecto/catabasis", "zone_name": "pedrogomez.dev" },
+    { "pattern": "pedrogomez.dev/proyecto/catabasis/*", "zone_name": "pedrogomez.dev" },
+    { "pattern": "www.pedrogomez.dev/proyecto/catabasis", "zone_name": "pedrogomez.dev" },
+    { "pattern": "www.pedrogomez.dev/proyecto/catabasis/*", "zone_name": "pedrogomez.dev" }
+  ]
+}

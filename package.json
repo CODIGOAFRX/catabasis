@@ -1,0 +1,14 @@
+{
+  "name": "catabasis",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Un bestiario imposible, del cielo al abismo, hecho con láminas antiguas de dominio público.",
+  "scripts": {
+    "test": "node scripts/check.mjs",
+    "build": "node scripts/build.mjs",
+    "dev": "npm run build && npx --yes wrangler dev",
+    "deploy": "npm run build && npx --yes wrangler deploy"
+  },
+  "engines": { "node": ">=20" }
+}
