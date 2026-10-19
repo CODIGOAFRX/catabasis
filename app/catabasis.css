@@ -37,17 +37,16 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --z-aire: #161613;
-    --z-fronda: #131611;
-    --z-hojarasca: #18140e;
-    --z-subsuelo: #1b1610;
-    --tinta: #ebe6d9;
-    --tinta-2: #b3ad9f;
-    --rubrica: #e46a50;
-    color-scheme: dark;
-  }
+/* claro por defecto; el oscuro solo con el botón de la cabecera (tema.js pone data-tema en <html>) */
+:root[data-tema='oscuro'] {
+  --z-aire: #161613;
+  --z-fronda: #131611;
+  --z-hojarasca: #18140e;
+  --z-subsuelo: #1b1610;
+  --tinta: #ebe6d9;
+  --tinta-2: #b3ad9f;
+  --rubrica: #e46a50;
+  color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -114,6 +113,16 @@ body[data-tono='oscuro'] .cabecera { color: var(--hueso); }
 .cabecera-nav { justify-self: end; display: flex; gap: clamp(.8rem, 2vw, 2rem); font-size: .98rem; }
 .cabecera-nav a { min-height: 44px; display: inline-flex; align-items: center; }
 .cabecera-nav a[aria-current='page'] { text-decoration: underline; }
+.cabecera-tema {
+  width: 44px; height: 44px; margin-right: -10px; padding: 0; border: 0; background: none; cursor: pointer;
+  display: inline-grid; place-items: center;
+}
+.cabecera-tema:hover { color: var(--rubrica); }
+.cabecera-tema svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+/* sin tema.js el botón no hace nada: mejor no enseñarlo */
+:root:not([data-tema]) .cabecera-tema { display: none; }
+.tema-sol, [data-tema='oscuro'] .tema-luna { display: none; }
+[data-tema='oscuro'] .tema-sol { display: block; }
 
 /* ---------------------------------------------------------------- sonda de profundidad */
 .sonda {
@@ -148,12 +157,10 @@ body[data-tono='oscuro'] .sonda { color: var(--hueso); }
 .zona-mar .lamina[data-modo='color'] .lamina-img,
 .zona-abismo .lamina[data-modo='color'] .lamina-img { mix-blend-mode: normal; }
 
-@media (prefers-color-scheme: dark) {
-  .lamina[data-modo='linea'] .lamina-img,
-  .hoja[data-modo='linea'] img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: screen; }
-  .lamina[data-modo='color'] .lamina-img,
-  .hoja[data-modo='color'] img { mix-blend-mode: normal; }
-}
+[data-tema='oscuro'] .lamina[data-modo='linea'] .lamina-img,
+[data-tema='oscuro'] .hoja[data-modo='linea'] img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: screen; }
+[data-tema='oscuro'] .lamina[data-modo='color'] .lamina-img,
+[data-tema='oscuro'] .hoja[data-modo='color'] img { mix-blend-mode: normal; }
 
 /* ---------------------------------------------------------------- portada */
 .portada {
@@ -173,10 +180,8 @@ body[data-tono='oscuro'] .sonda { color: var(--hueso); }
 .portada-columna { grid-column: 7 / 13; position: relative; height: min(88dvh, 920px); }
 .portada-pieza { position: absolute; display: block; }
 .portada-pieza img { width: 100%; mix-blend-mode: multiply; }
-@media (prefers-color-scheme: dark) {
-  .portada-pieza[data-modo='color'] img { mix-blend-mode: normal; }
-  .portada-pieza[data-modo='linea'] img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: screen; }
-}
+[data-tema='oscuro'] .portada-pieza[data-modo='color'] img { mix-blend-mode: normal; }
+[data-tema='oscuro'] .portada-pieza[data-modo='linea'] img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: screen; }
 .portada-pieza-1 { width: 56%; top: 0; left: 0; }
 .portada-pieza-2 { width: 30%; top: 14%; right: 4%; }
 .portada-pieza-3 { width: 60%; bottom: -4%; left: 22%; }
@@ -417,10 +422,8 @@ body[data-zona='abismo'] .linterna { opacity: 1; }
 .visor-nota { font-size: .92rem; color: var(--tinta-2); }
 .visor-nota:empty { display: none; }
 .visor-acciones { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 1.5rem; }
-@media (prefers-color-scheme: dark) {
-  .visor-lamina img { mix-blend-mode: normal; }
-  .visor[data-modo='linea'] .visor-lamina img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: screen; }
-}
+[data-tema='oscuro'] .visor-lamina img { mix-blend-mode: normal; }
+[data-tema='oscuro'] .visor[data-modo='linea'] .visor-lamina img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: screen; }
 
 /* ---------------------------------------------------------------- herbolario */
 .pagina-herbolario main { padding: 120px var(--margen) 6rem; }

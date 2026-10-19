@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 // package.json declara "type": "module", así que node --check los trata como módulos ES
-for (const f of ['catabasis.js', 'herbolario.js', 'ficha.js', 'scripts/build.mjs']) {
+for (const f of ['catabasis.js', 'herbolario.js', 'ficha.js', 'tema.js', 'scripts/build.mjs']) {
   execFileSync(process.execPath, ['--check', f.includes('/') ? f : `app/${f}`], { stdio: 'inherit' });
 }
 

@@ -13,7 +13,7 @@ const base = '/proyecto/catabasis';
 const out = resolve(repo, 'dist', base.slice(1));
 const { zonas, laminas, osario } = JSON.parse(await readFile(resolve(app, 'data', 'laminas.json'), 'utf8'));
 const hash = async f => createHash('sha256').update(await readFile(resolve(app, f))).digest('hex').slice(0, 10);
-const v = Object.fromEntries(await Promise.all(['catabasis.css', 'catabasis.js', 'herbolario.js', 'ficha.js'].map(async f => [f, await hash(f)])));
+const v = Object.fromEntries(await Promise.all(['catabasis.css', 'catabasis.js', 'herbolario.js', 'ficha.js', 'tema.js'].map(async f => [f, await hash(f)])));
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const darkZones = new Set(['mar', 'abismo', 'osario']);
@@ -22,6 +22,8 @@ const fit = (w, h, max) => { const s = Math.min(1, max / Math.max(w, h)); return
 const src = (l, size) => `${base}/media/laminas/${l.id}-${size}.webp`;
 const credit = l => [l.autor && esc(l.autor), l.obra && `<i>${esc(l.obra)}</i>`, l.anio && esc(l.anio)].filter(Boolean).join(', ');
 const altOf = l => `${l.titulo}${l.autor ? `, ${l.autor}` : ''}${l.anio ? `, ${l.anio}` : ''}`;
+// versión sin papel para el modo oscuro: desactivada por defecto, tema.js la activa al elegir oscuro
+const alfaSource = l => l.modo === 'color' ? `<source media="not all" data-alfa srcset="${base}/media/laminas/${l.id}-alfa.webp">` : '';
 
 // Data attributes the shared dialog reads to build a ficha
 const fichaData = l => [
@@ -38,8 +40,7 @@ function picture(l, { size = 'md', sizes = '(min-width: 1024px) 40vw, 92vw', eag
   if (dark && alfa) {
     return `<img class="lamina-img" src="${alfa}" width="${mw}" height="${mh}" alt="${esc(altOf(l))}" ${lazy} sizes="${sizes}">`;
   }
-  const darkSource = alfa ? `<source media="(prefers-color-scheme: dark)" srcset="${alfa}">` : '';
-  return `<picture>${darkSource}<img class="lamina-img" src="${src(l, size)}" srcset="${set}" sizes="${sizes}" width="${mw}" height="${mh}" alt="${esc(altOf(l))}" ${lazy}></picture>`;
+  return `<picture>${alfaSource(l)}<img class="lamina-img" src="${src(l, size)}" srcset="${set}" sizes="${sizes}" width="${mw}" height="${mh}" alt="${esc(altOf(l))}" ${lazy}></picture>`;
 }
 
 function figure(l, cls = '', opts = {}) {
@@ -67,9 +68,9 @@ const head = ({ title, description, path, preload = [] }) => `<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${esc(title)}</title>
     <meta name="description" content="${esc(description)}">
-    <meta name="theme-color" content="#ecebe4" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#151512" media="(prefers-color-scheme: dark)">
-    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#ecebe4">
+    <meta name="color-scheme" content="light">
+    <script src="${base}/tema.js?v=${v['tema.js']}"></script>
     <link rel="icon" type="image/svg+xml" href="${base}/favicon.svg">
     <link rel="canonical" href="https://www.pedrogomez.dev${path}">
     <meta property="og:type" content="website">
@@ -98,6 +99,10 @@ const topbar = current => `
             <a href="${base}/#aire"${current === 'descenso' ? ' aria-current="page"' : ''}>Descenso</a>
             <a href="${base}/#osario">Osario</a>
             <a href="${base}/herbolario"${current === 'herbolario' ? ' aria-current="page"' : ''}>Herbolario</a>
+            <button class="cabecera-tema" type="button" data-cambiar-tema aria-pressed="false" aria-label="Modo oscuro" title="Modo oscuro">
+                <svg class="tema-luna" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" /></svg>
+                <svg class="tema-sol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" /></svg>
+            </button>
         </nav>
     </header>`;
 
@@ -201,8 +206,7 @@ ${topbar('descenso')}
       <div class="portada-columna" aria-hidden="true">
         ${hero.map((l, i) => {
           const [w, h] = fit(l.w, l.h, 1200);
-          const alfa = l.modo === 'color' ? `<source media="(prefers-color-scheme: dark)" srcset="${base}/media/laminas/${l.id}-alfa.webp">` : '';
-          return `<picture class="portada-pieza portada-pieza-${i + 1}" data-modo="${l.modo}">${alfa}<img src="${src(l, 'md')}" width="${w}" height="${h}" alt="" ${i ? 'loading="lazy"' : 'fetchpriority="high"'}></picture>`;
+          return `<picture class="portada-pieza portada-pieza-${i + 1}" data-modo="${l.modo}">${alfaSource(l)}<img src="${src(l, 'md')}" width="${w}" height="${h}" alt="" ${i ? 'loading="lazy"' : 'fetchpriority="high"'}></picture>`;
         }).join('\n        ')}
       </div>
     </section>
@@ -248,12 +252,11 @@ ${dialog}
 const zoneOrder = [...zonas.map(z => z.id), 'osario'];
 const cards = laminas.map(l => {
   const [w, h] = fit(l.w, l.h, 480);
-  const alfa = l.modo === 'color' ? `<source media="(prefers-color-scheme: dark)" srcset="${base}/media/laminas/${l.id}-alfa.webp">` : '';
   const texto = [l.vulgar, l.titulo, l.latin, l.autor, l.obra, zoneName[l.zona]].filter(Boolean).join(' ').toLowerCase();
   return `
         <li class="hoja" data-zona="${l.zona}" data-modo="${l.modo}" data-buscar="${esc(texto)}">
           <button class="hoja-boton" type="button" ${fichaData(l)} aria-label="Abrir la ficha: ${esc(l.vulgar || l.titulo)}">
-            <picture>${alfa}<img src="${src(l, 'sm')}" width="${w}" height="${h}" alt="${esc(altOf(l))}" loading="lazy" decoding="async"></picture>
+            <picture>${alfaSource(l)}<img src="${src(l, 'sm')}" width="${w}" height="${h}" alt="${esc(altOf(l))}" loading="lazy" decoding="async"></picture>
           </button>
           <p class="hoja-titulo">${esc(l.vulgar || l.titulo)}</p>
           <p class="hoja-fuente">${[l.autor, l.anio].filter(Boolean).map(esc).join(', ')}</p>
@@ -303,7 +306,7 @@ for (const [name, html] of [['index', index], ['herbolario', herbolario]]) {
 
 await rm(resolve(repo, 'dist'), { recursive: true, force: true });
 await mkdir(out, { recursive: true });
-for (const f of ['catabasis.css', 'herbolario.js', 'favicon.svg', 'fonts', 'media']) await cp(resolve(app, f), resolve(out, f), { recursive: true });
+for (const f of ['catabasis.css', 'herbolario.js', 'tema.js', 'favicon.svg', 'fonts', 'media']) await cp(resolve(app, f), resolve(out, f), { recursive: true });
 // los módulos importan ficha.js: se versiona también para que nunca se mezclen versiones
 const conFicha = async f => (await readFile(resolve(app, f), 'utf8')).replace("from './ficha.js'", `from './ficha.js?v=${v['ficha.js']}'`);
 await writeFile(resolve(out, 'catabasis.js'), await conFicha('catabasis.js'));
