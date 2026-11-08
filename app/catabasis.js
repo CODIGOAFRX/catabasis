@@ -3,11 +3,9 @@ import { initVisor } from './ficha.js';
 const doc = document.documentElement;
 doc.classList.replace('no-js', 'js');
 const reduce = matchMedia('(prefers-reduced-motion: reduce)');
-const darkZones = new Set(['mar', 'abismo', 'osario']);
 
 initVisor();
 
-// ---------------------------------------------------------------- plates appear as they enter
 const reveal = new IntersectionObserver(entries => {
   for (const entry of entries) {
     if (!entry.isIntersecting) continue;
@@ -17,14 +15,14 @@ const reveal = new IntersectionObserver(entries => {
 }, { rootMargin: '0px 0px -8% 0px', threshold: .12 });
 document.querySelectorAll('.lamina').forEach(el => reveal.observe(el));
 
-// ---------------------------------------------------------------- depth probe: follows the zone in the middle of the screen
+// ---------------------------------------------------------------- sonda: sigue a la zona que ocupa el centro de la pantalla
 const sonda = document.querySelector('.sonda');
 const sondaCota = sonda.querySelector('.sonda-cota');
 const sondaZona = sonda.querySelector('.sonda-zona');
 const formato = new Intl.NumberFormat('es-ES', { useGrouping: 'always' });
 const parseCota = s => Number(String(s).replace(/[^\d-]/g, '')) || 0;
 const pintaCota = n => `${n > 0 ? '+' : ''}${formato.format(Math.round(n))} m`;
-let cotaActual = 2400;
+let cotaActual = parseCota(sondaCota.textContent);
 let tween = 0;
 
 function irACota(destino) {
@@ -40,23 +38,20 @@ function irACota(destino) {
   tween = requestAnimationFrame(paso);
 }
 
-const zonas = [...document.querySelectorAll('.portada, [data-zona]:not(body)')];
-const nombreZona = el => el.querySelector('h2')?.textContent || 'Portada';
 const zonaObserver = new IntersectionObserver(entries => {
   for (const entry of entries) {
     if (!entry.isIntersecting) continue;
-    const el = entry.target;
-    const id = el.dataset.zona || 'portada';
-    document.body.dataset.zona = id;
-    document.body.dataset.tono = darkZones.has(id) ? 'oscuro' : 'claro';
-    doc.style.setProperty('--cab-fondo', `var(--z-${id === 'portada' ? 'aire' : id})`);
-    if (el.dataset.cota) irACota(parseCota(el.dataset.cota));
-    sondaZona.textContent = nombreZona(el);
+    const { zona, tono, cota, nombre } = entry.target.dataset;
+    document.body.dataset.zona = zona;
+    document.body.dataset.tono = tono;
+    doc.style.setProperty('--cab-fondo', `var(--z-${zona})`);
+    irACota(parseCota(cota));
+    sondaZona.textContent = nombre;
   }
 }, { rootMargin: '-48% 0px -48% 0px' });
-zonas.forEach(el => zonaObserver.observe(el));
+document.querySelectorAll('section[data-zona]').forEach(el => zonaObserver.observe(el));
 
-// ---------------------------------------------------------------- lantern in the abyss
+// ---------------------------------------------------------------- linterna del abismo
 const linterna = document.querySelector('.linterna');
 if (linterna && matchMedia('(pointer: fine)').matches) {
   let frame = 0, x = 0, y = 0;
@@ -71,23 +66,31 @@ if (linterna && matchMedia('(pointer: fine)').matches) {
   }, { passive: true });
 }
 
-// ---------------------------------------------------------------- ossuary: chimera table
+// ---------------------------------------------------------------- osario: mesa de quimeras
 const mesa = document.querySelector('.mesa');
 if (mesa) initOsario(mesa);
 
 function initOsario(mesa) {
   const huesos = JSON.parse(mesa.dataset.osario);
   const N = huesos.length;
-  const ruta = f => `/proyecto/catabasis/media/osario/${f}`;
+  const ruta = f => new URL(`media/osario/${f}`, import.meta.url).href;
   const femeninos = new Set(['zarigüeya', 'cobaya', 'marmota', 'mangosta', 'morsa']);
   const art = a => `${femeninos.has(a) ? 'la' : 'el'} ${a}`;
   const de = a => (femeninos.has(a) ? `de la ${a}` : `del ${a}`);
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
-  const indice = stem => Math.max(0, huesos.findIndex(h => h.s === stem));
-  const estado = { cabeza: indice('leon'), tronco: indice('camel'), cola: indice('myrmec') };
+  const estado = JSON.parse(mesa.dataset.inicial);
   const piezas = Object.fromEntries([...mesa.querySelectorAll('.mesa-pieza')].map(p => [p.dataset.parte, p]));
+  // Cada parte se ve en su franja del lienzo común, de la cola a la cabeza, con los bordes fundidos.
+  // La misma tabla recorta las piezas en pantalla y en la lámina que se guarda, en este orden.
+  const franjas = { cola: [[0, 1], [.30, 1], [.37, 0]], tronco: [[.29, 0], [.36, 1], [.64, 1], [.71, 0]], cabeza: [[.63, 0], [.70, 1], [1, 1]] };
+  for (const [parte, pieza] of Object.entries(piezas)) {
+    const mascara = `linear-gradient(90deg, ${franjas[parte].map(([p, a]) => `rgb(0 0 0 / ${a}) ${Math.round(p * 100)}%`).join(', ')})`;
+    pieza.style.setProperty('-webkit-mask-image', mascara);
+    pieza.style.setProperty('mask-image', mascara);
+  }
   const campo = n => mesa.querySelector(`[data-quimera="${n}"]`);
   const total = formato.format(N ** 3);
+  const cambios = {};
 
   const plantillas = [
     (c, t, k) => `Tiene el gesto ${de(c.a)}, la paciencia ${de(t.a)} y la cola ${de(k.a)}. Nadie la ha visto moverse, pero sus huesos encajan.`,
@@ -113,9 +116,12 @@ function initOsario(mesa) {
       const nuevo = ruta(huesos[i].f);
       if (img.getAttribute('src') === nuevo) continue;
       if (reduce.matches || !img.getAttribute('src')) { img.src = nuevo; continue; }
+      // la pieza se apaga (.mesa-pieza, transición de opacity en catabasis.css) y se cambia casi a oscuras;
+      // un clic nuevo antes de tiempo anula el cambio pendiente, así nunca gana una pieza antigua
+      clearTimeout(cambios[parte]);
       piezas[parte].classList.add('is-cambiando');
-      setTimeout(() => {
-        img.src = nuevo;
+      cambios[parte] = setTimeout(() => {
+        img.src = ruta(huesos[estado[parte]].f);
         img.decode().catch(() => {}).finally(() => piezas[parte].classList.remove('is-cambiando'));
       }, 220);
     }
@@ -138,14 +144,14 @@ function initOsario(mesa) {
   });
 
   async function guardar() {
-    const W = 1400, H = 1120, LAM = 1000;
+    const imgs = await Promise.all(Object.keys(franjas).map(parte => cargar(ruta(huesos[estado[parte]].f))));
+    const W = imgs[0].naturalWidth, LAM = imgs[0].naturalHeight, H = LAM + 120;
     const lienzo = Object.assign(document.createElement('canvas'), { width: W, height: H });
     const ctx = lienzo.getContext('2d');
     ctx.fillStyle = '#f0eee6';
     ctx.fillRect(0, 0, W, H);
-    const bandas = { cola: [[0, 1], [.30, 1], [.37, 0]], tronco: [[.29, 0], [.36, 1], [.64, 1], [.71, 0]], cabeza: [[.63, 0], [.70, 1], [1, 1]] };
-    for (const parte of ['cola', 'tronco', 'cabeza']) {
-      const img = await cargar(ruta(huesos[estado[parte]].f));
+    for (const [k, parte] of Object.keys(franjas).entries()) {
+      const img = imgs[k];
       const capa = Object.assign(document.createElement('canvas'), { width: W, height: LAM });
       const c2 = capa.getContext('2d');
       c2.fillStyle = '#fff';
@@ -153,20 +159,19 @@ function initOsario(mesa) {
       c2.drawImage(img, 0, 0, W, LAM);
       c2.globalCompositeOperation = 'destination-in';
       const g = c2.createLinearGradient(0, 0, W, 0);
-      for (const [p, a] of bandas[parte]) g.addColorStop(p, `rgba(0,0,0,${a})`);
+      for (const [p, a] of franjas[parte]) g.addColorStop(p, `rgba(0,0,0,${a})`);
       c2.fillStyle = g;
       c2.fillRect(0, 0, W, LAM);
       ctx.globalCompositeOperation = 'multiply';
       ctx.drawImage(capa, 0, 0);
     }
     ctx.globalCompositeOperation = 'source-over';
-    await document.fonts.load('italic 40px "IM Fell English"');
+    // mismas familias que las @font-face de catabasis.css; se cargan antes de dibujar con cada una
+    const escribe = async (font, texto, y) => { ctx.font = font; await document.fonts.load(font); ctx.fillText(texto, W / 2, y); };
     ctx.fillStyle = '#1c1f1c';
     ctx.textAlign = 'center';
-    ctx.font = 'italic 46px "IM Fell English", Georgia, serif';
-    ctx.fillText(campo('latin').textContent, W / 2, LAM + 50);
-    ctx.font = '22px "EB Garamond", Georgia, serif';
-    ctx.fillText('Catábasis, osario de quimeras. Esqueletos de E. J. d\'Alton, 1821-1838.', W / 2, LAM + 92);
+    await escribe('italic 46px "IM Fell English", Georgia, serif', campo('latin').textContent, LAM + 50);
+    await escribe('22px "EB Garamond", Georgia, serif', 'Catábasis, osario de quimeras. Esqueletos de E. J. d\'Alton, 1821-1838.', LAM + 92);
     const enlace = Object.assign(document.createElement('a'), {
       href: lienzo.toDataURL('image/png'),
       download: `quimera-${campo('latin').textContent.toLowerCase().replace(/[^a-z]+/g, '-')}.png`,

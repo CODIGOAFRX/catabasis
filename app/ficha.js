@@ -1,7 +1,7 @@
-// Shared plate viewer: any button carrying data-id opens the full ficha in the <dialog>.
-const BASE = '/proyecto/catabasis/media/laminas/';
+// Visor común: cualquier botón con data-id (los escribe build.mjs) abre la ficha completa en el <dialog>.
+const laminas = new URL('media/laminas/', import.meta.url);
 
-export function initVisor(root = document) {
+export function initVisor() {
   const visor = document.querySelector('.visor');
   if (!visor) return;
   const img = visor.querySelector('.visor-lamina img');
@@ -17,10 +17,10 @@ export function initVisor(root = document) {
   const open = d => {
     origen = document.activeElement;
     img.removeAttribute('src');
-    img.alt = d.titulo + (d.autor ? `, ${d.autor}` : '');
+    img.alt = d.alt;
     img.width = Number(d.w) || 1200;
     img.height = Number(d.h) || 1200;
-    img.src = `${BASE}${d.id}-lg.webp`;
+    img.src = new URL(`${d.id}-lg.webp`, laminas);
     visor.dataset.modo = d.modo || '';
     latin.textContent = d.latin || '';
     latin.hidden = !d.latin;
@@ -38,7 +38,7 @@ export function initVisor(root = document) {
     visor.querySelector('.visor-cerrar').focus();
   };
 
-  root.addEventListener('click', e => {
+  document.addEventListener('click', e => {
     const boton = e.target.closest('button[data-id]');
     if (boton) open(boton.dataset);
   });

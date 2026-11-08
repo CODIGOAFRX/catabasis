@@ -21,6 +21,7 @@
   --z-mar: #0e1a1b;
   --z-abismo: #07090b;
   --z-osario: #0d0d0c;
+  --z-portada: var(--z-aire);
 
   --tinta: #1c1f1c;
   --tinta-2: #4a4c44;
@@ -88,7 +89,7 @@ button { font: inherit; color: inherit; }
 }
 .boton:active { transform: translateY(1px); }
 .boton-tinta { background: var(--tinta); color: var(--z-aire); border-color: var(--tinta); }
-.boton-tinta:hover { background: var(--rubrica); border-color: var(--rubrica); color: var(--z-aire); }
+.boton-tinta:hover { background: var(--rubrica); border-color: var(--rubrica); }
 .boton-linea { background: transparent; }
 .boton-linea:hover { color: var(--rubrica); }
 .boton-hueso { background: var(--hueso); color: var(--z-osario); border-color: var(--hueso); }
@@ -135,10 +136,10 @@ body[data-tono='oscuro'] .cabecera { color: var(--hueso); }
 }
 body[data-zona='portada'] .sonda { opacity: 0; }
 body[data-tono='oscuro'] .sonda { color: var(--hueso); }
-.sonda-cota { font-family: var(--garamond); font-size: 1.55rem; line-height: 1; font-variant-numeric: lining-nums tabular-nums; }
-.sonda-zona { font-variant-caps: all-small-caps; letter-spacing: .08em; font-size: 1rem; color: inherit; opacity: .75; }
+.sonda-cota { font-family: var(--garamond); font-size: 1.55rem; line-height: 1; }
+.sonda-zona { font-variant-caps: all-small-caps; letter-spacing: .08em; font-size: 1rem; opacity: .75; }
 .sonda-hilo { width: 1px; height: 22vh; margin-top: .8rem; background: currentColor; opacity: .25; position: relative; }
-.sonda-hilo span { position: absolute; inset: 0; background: currentColor; transform-origin: top; scale: 1 0; opacity: 1; }
+.sonda-hilo span { position: absolute; inset: 0; background: currentColor; transform-origin: top; scale: 1 0; }
 @supports (animation-timeline: scroll()) {
   .sonda-hilo span { animation: hilo linear both; animation-timeline: scroll(root); }
   @keyframes hilo { to { scale: 1 1; } }
@@ -146,21 +147,13 @@ body[data-tono='oscuro'] .sonda { color: var(--hueso); }
 
 /* ---------------------------------------------------------------- láminas: fusión con el papel */
 .lamina-img { mix-blend-mode: multiply; }
-.zona-mar .lamina[data-modo='linea'] .lamina-img,
-.zona-abismo .lamina[data-modo='linea'] .lamina-img {
-  filter: invert(1) hue-rotate(180deg);
-  mix-blend-mode: screen;
-}
+/* sobre fondo oscuro (zona oscura o tema oscuro) las de línea se invierten y brillan con screen;
+   las de color ya llegan sin papel y van tal cual. data-modo lo pone build.mjs en el contenedor de cada lámina. */
+:is(section[data-tono='oscuro'], [data-tema='oscuro']) [data-modo='linea'] img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: screen; }
+:is(section[data-tono='oscuro'], [data-tema='oscuro']) [data-modo='color'] img { mix-blend-mode: normal; }
 /* la máscara aísla cada pieza: la fusión va en la pieza y la inversión en la imagen */
 .mesa-pieza { mix-blend-mode: screen; }
 .mesa-pieza img { filter: invert(1) hue-rotate(180deg); }
-.zona-mar .lamina[data-modo='color'] .lamina-img,
-.zona-abismo .lamina[data-modo='color'] .lamina-img { mix-blend-mode: normal; }
-
-[data-tema='oscuro'] .lamina[data-modo='linea'] .lamina-img,
-[data-tema='oscuro'] .hoja[data-modo='linea'] img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: screen; }
-[data-tema='oscuro'] .lamina[data-modo='color'] .lamina-img,
-[data-tema='oscuro'] .hoja[data-modo='color'] img { mix-blend-mode: normal; }
 
 /* ---------------------------------------------------------------- portada */
 .portada {
@@ -180,8 +173,6 @@ body[data-tono='oscuro'] .sonda { color: var(--hueso); }
 .portada-columna { grid-column: 7 / 13; position: relative; height: min(88dvh, 920px); }
 .portada-pieza { position: absolute; display: block; }
 .portada-pieza img { width: 100%; mix-blend-mode: multiply; }
-[data-tema='oscuro'] .portada-pieza[data-modo='color'] img { mix-blend-mode: normal; }
-[data-tema='oscuro'] .portada-pieza[data-modo='linea'] img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: screen; }
 .portada-pieza-1 { width: 56%; top: 0; left: 0; }
 .portada-pieza-2 { width: 30%; top: 14%; right: 4%; }
 .portada-pieza-3 { width: 60%; bottom: -4%; left: 22%; }
@@ -205,9 +196,10 @@ body[data-tono='oscuro'] .sonda { color: var(--hueso); }
 .zona-fronda { background: linear-gradient(var(--z-aire), var(--z-fronda) 38vh); }
 .zona-hojarasca { background: linear-gradient(var(--z-fronda), var(--z-hojarasca) 38vh); }
 .zona-subsuelo { background: linear-gradient(var(--z-hojarasca), var(--z-subsuelo) 46vh); }
-.zona-mar { background: linear-gradient(var(--z-subsuelo), #5d5444 14vh, #1f2523 40vh, var(--z-mar) 70vh); color: var(--hueso); --rubrica: var(--rubrica-clara); --tinta: var(--hueso); --tinta-2: var(--hueso-2); }
-.zona-abismo { background: linear-gradient(var(--z-mar), var(--z-abismo) 60vh); color: var(--hueso); --rubrica: var(--rubrica-clara); --tinta: var(--hueso); --tinta-2: var(--hueso-2); }
-.osario { background: linear-gradient(var(--z-abismo), var(--z-osario) 40vh); color: var(--hueso); --rubrica: var(--rubrica-clara); --tinta: var(--hueso); --tinta-2: var(--hueso-2); }
+.zona-mar { background: linear-gradient(var(--z-subsuelo), #5d5444 14vh, #1f2523 40vh, var(--z-mar) 70vh); }
+.zona-abismo { background: linear-gradient(var(--z-mar), var(--z-abismo) 60vh); }
+.osario { background: linear-gradient(var(--z-abismo), var(--z-osario) 40vh); }
+section[data-tono='oscuro'] { color: var(--hueso); --rubrica: var(--rubrica-clara); --tinta: var(--hueso); --tinta-2: var(--hueso-2); }
 
 .zona-cabecera { position: relative; max-width: 62rem; margin-bottom: clamp(4rem, 12vh, 9rem); }
 .zona-cota {
@@ -223,7 +215,6 @@ body[data-tono='oscuro'] .sonda { color: var(--hueso); }
 }
 .zona-intro { max-width: 40ch; margin: 0 0 0 .1em; font-size: clamp(1.12rem, 1.3vw, 1.3rem); color: var(--tinta-2); }
 
-/* figura común */
 .lamina { margin: 0; position: relative; }
 .lamina-boton {
   display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in;
@@ -297,7 +288,7 @@ body[data-tono='oscuro'] .sonda { color: var(--hueso); }
 
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) and (min-width: 768px) {
-    .cajon { height: calc(var(--n, 8) * 46vh); view-timeline: --cajon block; }
+    .cajon { height: calc(var(--n) * 46vh); view-timeline: --cajon block; }
     .cajon-pista {
       position: sticky; top: 0; height: 100dvh; width: max-content;
       overflow: visible; align-items: center; padding-top: 88px; padding-bottom: 1.5rem;
@@ -353,7 +344,6 @@ body[data-tono='oscuro'] .sonda { color: var(--hueso); }
 .fondo-8 { grid-column: 9 / 13; margin-top: 12rem; }
 .fondo-9 { grid-column: 4 / 10; }
 .fondo-10 { grid-column: 1 / 6; }
-.zona-abismo .ficha { z-index: var(--capa-ficha); }
 .linterna {
   position: fixed; inset: 0; z-index: var(--capa-linterna); pointer-events: none;
   background: radial-gradient(circle min(40vmax, 460px) at var(--lx, 50%) var(--ly, 55%), transparent 0, rgb(7 9 11 / .28) 45%, rgb(7 9 11 / .8) 100%);
@@ -367,12 +357,9 @@ body[data-zona='abismo'] .linterna { opacity: 1; }
 
 /* ---------------------------------------------------------------- VII. el osario: mesa de quimeras */
 .mesa { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: clamp(1rem, 3vw, 3rem); row-gap: 2rem; align-items: center; }
-.mesa-lamina { grid-column: 1 / 9; position: relative; aspect-ratio: 1400 / 1000; }
+.mesa-lamina { grid-column: 1 / 9; position: relative; }
 .mesa-pieza { position: absolute; inset: 0; transition: opacity .35s var(--ease); }
 .mesa-pieza img { width: 100%; height: 100%; }
-.mesa-pieza[data-parte='cola'] { -webkit-mask-image: linear-gradient(90deg, #000 0 30%, transparent 37%); mask-image: linear-gradient(90deg, #000 0 30%, transparent 37%); }
-.mesa-pieza[data-parte='tronco'] { -webkit-mask-image: linear-gradient(90deg, transparent 29%, #000 36% 64%, transparent 71%); mask-image: linear-gradient(90deg, transparent 29%, #000 36% 64%, transparent 71%); }
-.mesa-pieza[data-parte='cabeza'] { -webkit-mask-image: linear-gradient(90deg, transparent 63%, #000 70%); mask-image: linear-gradient(90deg, transparent 63%, #000 70%); }
 .mesa-pieza.is-cambiando { opacity: 0; }
 .mesa-ficha { grid-column: 9 / 13; }
 .mesa-ficha h3 { font-family: var(--fell); font-weight: 400; font-size: clamp(1.7rem, 2.4vw, 2.3rem); line-height: 1.08; margin: .2rem 0 .7rem; }
@@ -397,7 +384,7 @@ body[data-zona='abismo'] .linterna { opacity: 1; }
 .pagina-herbolario .colofon { background: var(--z-aire); color: var(--tinta); border-color: color-mix(in srgb, var(--tinta) 15%, transparent); --rubrica: inherit; }
 .colofon-texto { grid-column: 1 / 8; }
 .colofon-texto p { max-width: 62ch; margin: 0 0 .8rem; font-size: 1rem; }
-.colofon-titulo { font-family: var(--fell); font-size: 2rem !important; margin-bottom: 1rem !important; }
+.colofon-texto .colofon-titulo { font-family: var(--fell); font-size: 2rem; margin-bottom: 1rem; }
 .colofon-enlaces { grid-column: 9 / 13; display: flex; flex-direction: column; gap: .6rem; align-items: flex-start; }
 
 /* ---------------------------------------------------------------- visor (ficha ampliada) */
@@ -422,8 +409,6 @@ body[data-zona='abismo'] .linterna { opacity: 1; }
 .visor-nota { font-size: .92rem; color: var(--tinta-2); }
 .visor-nota:empty { display: none; }
 .visor-acciones { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 1.5rem; }
-[data-tema='oscuro'] .visor-lamina img { mix-blend-mode: normal; }
-[data-tema='oscuro'] .visor[data-modo='linea'] .visor-lamina img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: screen; }
 
 /* ---------------------------------------------------------------- herbolario */
 .pagina-herbolario main { padding: 120px var(--margen) 6rem; }
@@ -448,7 +433,6 @@ body[data-zona='abismo'] .linterna { opacity: 1; }
 .filtros-buscar input::placeholder { color: var(--tinta-2); opacity: .9; }
 .hojas { list-style: none; margin: 0; padding: 0; columns: 5 14rem; column-gap: clamp(1.2rem, 2.5vw, 2.4rem); }
 .hoja { break-inside: avoid; margin-bottom: 2.4rem; }
-.hoja[hidden] { display: none; }
 .hoja-boton { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
 .hoja img { width: 100%; mix-blend-mode: multiply; transition: scale .6s var(--ease); }
 .hoja-boton:hover img { scale: 1.02; }
@@ -458,7 +442,7 @@ body[data-zona='abismo'] .linterna { opacity: 1; }
 
 /* ---------------------------------------------------------------- móvil: una columna */
 @media (max-width: 1023px) {
-  .sonda { top: auto; bottom: 12px; right: 12px; translate: none; justify-items: end; padding: .35rem .65rem; background: var(--cab-fondo, var(--z-aire)); border: 1px solid color-mix(in srgb, currentColor 22%, transparent); }
+  .sonda { top: auto; bottom: 12px; right: 12px; translate: none; padding: .35rem .65rem; background: var(--cab-fondo, var(--z-aire)); border: 1px solid color-mix(in srgb, currentColor 22%, transparent); }
   .sonda-zona { font-size: .85rem; }
   .sonda-cota { font-size: 1.2rem; }
   .sonda-hilo { display: none; }

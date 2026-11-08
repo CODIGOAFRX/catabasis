@@ -1,11 +1,10 @@
 // Comprobaciones rápidas sin dependencias: sintaxis, datos completos y que cada lámina tenga sus archivos.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 // package.json declara "type": "module", así que node --check los trata como módulos ES
-for (const f of ['catabasis.js', 'herbolario.js', 'ficha.js', 'tema.js', 'scripts/build.mjs']) {
-  execFileSync(process.execPath, ['--check', f.includes('/') ? f : `app/${f}`], { stdio: 'inherit' });
-}
+const scripts = [...readdirSync('app').filter(f => f.endsWith('.js')).map(f => `app/${f}`), 'scripts/build.mjs'];
+for (const f of scripts) execFileSync(process.execPath, ['--check', f], { stdio: 'inherit' });
 
 const { zonas, laminas, osario } = JSON.parse(readFileSync('app/data/laminas.json', 'utf8'));
 const errores = [];

@@ -12,43 +12,71 @@ const app = resolve(repo, 'app');
 const base = '/proyecto/catabasis';
 const out = resolve(repo, 'dist', base.slice(1));
 const { zonas, laminas, osario } = JSON.parse(await readFile(resolve(app, 'data', 'laminas.json'), 'utf8'));
-const hash = async f => createHash('sha256').update(await readFile(resolve(app, f))).digest('hex').slice(0, 10);
-const v = Object.fromEntries(await Promise.all(['catabasis.css', 'catabasis.js', 'herbolario.js', 'ficha.js', 'tema.js'].map(async f => [f, await hash(f)])));
+
+// Estilos y módulos se publican con ?v=<hash de lo publicado>. Los imports entre módulos llevan también
+// la versión, así que si cambia ficha.js cambia la URL de quien lo importa y nunca se mezclan versiones.
+// Cada archivo va después de los que importa.
+const publicado = {};
+for (const f of ['tema.js', 'catabasis.css', 'ficha.js', 'catabasis.js', 'herbolario.js']) {
+  const contenido = (await readFile(resolve(app, f), 'utf8')).replace(/from '\.\/([\w-]+\.js)'/g, (_, dep) => {
+    if (!publicado[dep]) throw Error(`${f} importa ${dep}, que tiene que ir antes en la lista de build.mjs`);
+    return `from './${dep}?v=${publicado[dep].v}'`;
+  });
+  publicado[f] = { contenido, v: createHash('sha256').update(contenido).digest('hex').slice(0, 10) };
+}
+const url = f => `${base}/${f}?v=${publicado[f].v}`;
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const darkZones = new Set(['mar', 'abismo', 'osario']);
-const zoneName = Object.fromEntries([...zonas.map(z => [z.id, z.nombre]), ['osario', 'El osario']]);
+const tono = id => (darkZones.has(id) ? 'oscuro' : 'claro');
+const portadaZona = { id: 'portada', nombre: 'Portada', cota: '+2.400 m' };
+const osarioZona = {
+  id: 'osario', nombre: 'El osario', cota: '-6.000 m',
+  intro: 'En el fondo se acumulan los huesos de todo lo que cayó. Con ellos se arman las criaturas que nadie dibujó: cabeza, tronco y cola de animales distintos.',
+};
+const todasLasZonas = [...zonas, osarioZona];
+
+// Mesa del osario. Los esqueletos se encajaron en un lienzo común de 1400 × 1000 (pipeline/osario.py).
+// Las partes van de la cola a la cabeza: es el orden en que se apilan y se dibujan en la lámina guardada.
+const LIENZO_OSARIO = [1400, 1000];
+const PARTES = [['cola', 'Cola'], ['tronco', 'Tronco'], ['cabeza', 'Cabeza']];
+const QUIMERA_INICIAL = { cabeza: 'leon', tronco: 'camel', cola: 'myrmec' };
+const inicial = Object.fromEntries(Object.entries(QUIMERA_INICIAL).map(([parte, stem]) => {
+  const i = osario.findIndex(o => o.stem === stem);
+  if (i < 0) throw Error(`La quimera inicial usa «${stem}», que no está en el osario de laminas.json`);
+  return [parte, i];
+}));
+const zoneName = Object.fromEntries(todasLasZonas.map(z => [z.id, z.nombre]));
 const fit = (w, h, max) => { const s = Math.min(1, max / Math.max(w, h)); return [Math.round(w * s), Math.round(h * s)]; };
 const src = (l, size) => `${base}/media/laminas/${l.id}-${size}.webp`;
 const credit = l => [l.autor && esc(l.autor), l.obra && `<i>${esc(l.obra)}</i>`, l.anio && esc(l.anio)].filter(Boolean).join(', ');
 const altOf = l => `${l.titulo}${l.autor ? `, ${l.autor}` : ''}${l.anio ? `, ${l.anio}` : ''}`;
 // versión sin papel para el modo oscuro: desactivada por defecto, tema.js la activa al elegir oscuro
-const alfaSource = l => l.modo === 'color' ? `<source media="not all" data-alfa srcset="${base}/media/laminas/${l.id}-alfa.webp">` : '';
+const alfaSource = l => l.modo === 'color' ? `<source media="not all" data-alfa srcset="${src(l, 'alfa')}">` : '';
 
-// Data attributes the shared dialog reads to build a ficha
+// lo que ficha.js lee para abrir la ficha completa
 const fichaData = l => [
-  ['id', l.id], ['titulo', l.titulo], ['vulgar', l.vulgar], ['latin', l.latin], ['texto', l.texto],
+  ['id', l.id], ['alt', altOf(l)], ['titulo', l.titulo], ['vulgar', l.vulgar], ['latin', l.latin], ['texto', l.texto],
   ['verdad', l.verdad], ['autor', l.autor], ['obra', l.obra], ['anio', l.anio], ['fuente', l.fuente],
   ['url', l.url], ['w', l.w], ['h', l.h], ['modo', l.modo], ['ampliada', l.ampliada ? '1' : ''],
 ].filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => `data-${k}="${esc(v)}"`).join(' ');
 
-function picture(l, { size = 'md', sizes = '(min-width: 1024px) 40vw, 92vw', eager = false, dark = false } = {}) {
+// en las zonas oscuras las láminas de color van directamente sin papel
+function picture(l, sizes) {
   const [mw, mh] = fit(l.w, l.h, 1200);
-  const lazy = eager ? 'fetchpriority="high"' : 'loading="lazy" decoding="async"';
-  const alfa = l.modo === 'color' ? `${base}/media/laminas/${l.id}-alfa.webp` : null;
-  const set = `${src(l, 'sm')} 480w, ${src(l, 'md')} ${mw}w`;
-  if (dark && alfa) {
-    return `<img class="lamina-img" src="${alfa}" width="${mw}" height="${mh}" alt="${esc(altOf(l))}" ${lazy} sizes="${sizes}">`;
+  const lazy = 'loading="lazy" decoding="async"';
+  if (darkZones.has(l.zona) && l.modo === 'color') {
+    return `<img class="lamina-img" src="${src(l, 'alfa')}" width="${mw}" height="${mh}" alt="${esc(altOf(l))}" ${lazy} sizes="${sizes}">`;
   }
-  return `<picture>${alfaSource(l)}<img class="lamina-img" src="${src(l, size)}" srcset="${set}" sizes="${sizes}" width="${mw}" height="${mh}" alt="${esc(altOf(l))}" ${lazy}></picture>`;
+  const set = `${src(l, 'sm')} 480w, ${src(l, 'md')} ${mw}w`;
+  return `<picture>${alfaSource(l)}<img class="lamina-img" src="${src(l, 'md')}" srcset="${set}" sizes="${sizes}" width="${mw}" height="${mh}" alt="${esc(altOf(l))}" ${lazy}></picture>`;
 }
 
-function figure(l, cls = '', opts = {}) {
-  const dark = darkZones.has(l.zona);
+function figure(l, cls, sizes) {
   return `
-        <figure class="lamina ${cls}" data-modo="${l.modo}">
+        <figure class="${['lamina', cls].filter(Boolean).join(' ')}" data-modo="${l.modo}">
           <button class="lamina-boton" type="button" ${fichaData(l)} aria-label="Abrir la ficha: ${esc(l.vulgar || l.titulo)}">
-            ${picture(l, { ...opts, dark })}
+            ${picture(l, sizes)}
           </button>
           <figcaption class="ficha">
             <span class="ficha-latin" lang="la">${esc(l.latin)}</span>
@@ -70,7 +98,7 @@ const head = ({ title, description, path, preload = [] }) => `<!DOCTYPE html>
     <meta name="description" content="${esc(description)}">
     <meta name="theme-color" content="#ecebe4">
     <meta name="color-scheme" content="light">
-    <script src="${base}/tema.js?v=${v['tema.js']}"></script>
+    <script src="${url('tema.js')}"></script>
     <link rel="icon" type="image/svg+xml" href="${base}/favicon.svg">
     <link rel="canonical" href="https://www.pedrogomez.dev${path}">
     <meta property="og:type" content="website">
@@ -84,7 +112,7 @@ const head = ({ title, description, path, preload = [] }) => `<!DOCTYPE html>
     <link rel="preload" href="${base}/fonts/fell.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="${base}/fonts/garamond.woff2" as="font" type="font/woff2" crossorigin>
 ${preload.map(p => `    <link rel="preload" href="${p}" as="image">`).join('\n')}
-    <link rel="stylesheet" href="${base}/catabasis.css?v=${v['catabasis.css']}">
+    <link rel="stylesheet" href="${url('catabasis.css')}">
 </head>
 `;
 
@@ -147,34 +175,37 @@ const footer = `
         </nav>
     </footer>`;
 
-// ---------- index.html
 const byZone = id => laminas.filter(l => l.zona === id && l.destacada).sort((a, b) => a.orden - b.orden);
 const hero = ['pdia-14e6b862', 'pdia-c06c3e6c', 'bhl-48430506496'].map(id => laminas.find(l => l.id === id));
 
 const zoneLayouts = {
-  aire: (ls) => ls.map((l, i) => figure(l, `vuelo vuelo-${i + 1}`, { sizes: '(min-width: 1024px) 30vw, 88vw' })).join(''),
-  fronda: (ls) => ls.map((l, i) => figure(l, `pliego pliego-${i + 1}`, { sizes: '(min-width: 1024px) 30vw, 92vw' })).join(''),
+  aire: (ls) => ls.map((l, i) => figure(l, `vuelo vuelo-${i + 1}`, '(min-width: 1024px) 30vw, 88vw')).join(''),
+  fronda: (ls) => ls.map(l => figure(l, 'pliego', '(min-width: 1024px) 30vw, 92vw')).join(''),
   hojarasca: (ls) => `
-        <div class="cajon" data-cajon style="--n: ${ls.length}">
-          <div class="cajon-pista">${ls.map((l, i) => figure(l, `especimen especimen-${i + 1}`, { sizes: '(min-width: 1024px) 34vw, 80vw' })).join('')}
+        <div class="cajon" style="--n: ${ls.length}">
+          <div class="cajon-pista">${ls.map(l => figure(l, 'especimen', '(min-width: 1024px) 34vw, 80vw')).join('')}
           </div>
         </div>`,
   subsuelo: (ls) => ls.map((l, i) => `
         <div class="estrato estrato-${i + 1}">
-          <span class="estrato-cota" aria-hidden="true">${-120 - i * 35} m</span>${figure(l, 'enterrada', { sizes: '(min-width: 1024px) 34vw, 88vw' })}
+          <span class="estrato-cota" aria-hidden="true">${-120 - i * 35} m</span>${figure(l, '', '(min-width: 1024px) 34vw, 88vw')}
         </div>`).join(''),
-  mar: (ls) => ls.map((l, i) => figure(l, `nado nado-${i + 1}`, { sizes: '(min-width: 1024px) 40vw, 92vw' })).join(''),
-  abismo: (ls) => ls.map((l, i) => figure(l, `fondo fondo-${i + 1}`, { sizes: '(min-width: 1024px) 32vw, 88vw' })).join(''),
+  mar: (ls) => ls.map((l, i) => figure(l, `nado nado-${i + 1}`, '(min-width: 1024px) 40vw, 92vw')).join(''),
+  abismo: (ls) => ls.map((l, i) => figure(l, `fondo fondo-${i + 1}`, '(min-width: 1024px) 32vw, 88vw')).join(''),
 };
 
-const zoneSections = zonas.map(z => `
-    <section class="zona zona-${z.id}" id="${z.id}" data-zona="${z.id}" data-cota="${esc(z.cota)}" aria-labelledby="titulo-${z.id}">
+// lo que catabasis.js lee para mover la sonda y el color de la cabecera al entrar en cada zona
+const zonaData = z => `data-zona="${z.id}" data-nombre="${esc(z.nombre)}" data-cota="${esc(z.cota)}" data-tono="${tono(z.id)}"`;
+const zonaCabecera = z => `
       <header class="zona-cabecera">
         <p class="zona-cota" aria-hidden="true">${esc(z.cota)}</p>
         <h2 id="titulo-${z.id}">${esc(z.nombre)}</h2>
         <p class="zona-intro">${esc(z.intro)}</p>
-      </header>
-      <div class="zona-laminas zona-laminas-${z.id}">${zoneLayouts[z.id](byZone(z.id))}
+      </header>`;
+
+const zoneSections = zonas.map(z => `
+    <section class="zona zona-${z.id}" id="${z.id}" ${zonaData(z)} aria-labelledby="titulo-${z.id}">${zonaCabecera(z)}
+      <div class="zona-laminas-${z.id}">${zoneLayouts[z.id](byZone(z.id))}
       </div>${z.id === 'abismo' ? '\n      <div class="linterna" aria-hidden="true"></div>' : ''}
     </section>`).join('\n');
 
@@ -186,18 +217,18 @@ const index = `${head({
   path: `${base}/`,
   preload: [src(hero[0], 'md')],
 })}
-<body data-zona="portada" data-tono="claro">
+<body data-zona="portada" data-tono="${tono('portada')}">
     <a class="saltar" href="#aire">Saltar al descenso</a>
 ${topbar('descenso')}
 
     <aside class="sonda" aria-live="polite" aria-atomic="true">
-        <span class="sonda-cota">+2.400 m</span>
-        <span class="sonda-zona">Portada</span>
+        <span class="sonda-cota">${portadaZona.cota}</span>
+        <span class="sonda-zona">${portadaZona.nombre}</span>
         <span class="sonda-hilo" aria-hidden="true"><span></span></span>
     </aside>
 
     <main>
-    <section class="portada" aria-labelledby="titulo-portada">
+    <section class="portada" ${zonaData(portadaZona)} aria-labelledby="titulo-portada">
       <div class="portada-texto">
         <h1 id="titulo-portada">Catábasis</h1>
         <p class="portada-sub">Un bestiario imposible, del cielo al abismo, hecho con láminas antiguas de dominio público.</p>
@@ -212,17 +243,10 @@ ${topbar('descenso')}
     </section>
 ${zoneSections}
 
-    <section class="osario" id="osario" data-zona="osario" data-cota="-6.000 m" aria-labelledby="titulo-osario">
-      <header class="zona-cabecera">
-        <p class="zona-cota" aria-hidden="true">-6.000 m</p>
-        <h2 id="titulo-osario">El osario</h2>
-        <p class="zona-intro">En el fondo se acumulan los huesos de todo lo que cayó. Con ellos se arman las criaturas que nadie dibujó: cabeza, tronco y cola de animales distintos.</p>
-      </header>
-      <div class="mesa" data-osario='${osarioJson.replace(/'/g, '&#39;')}'>
-        <div class="mesa-lamina">
-          <div class="mesa-pieza" data-parte="cola"><img alt="" width="1400" height="1000"></div>
-          <div class="mesa-pieza" data-parte="tronco"><img alt="" width="1400" height="1000"></div>
-          <div class="mesa-pieza" data-parte="cabeza"><img alt="" width="1400" height="1000"></div>
+    <section class="osario" id="osario" ${zonaData(osarioZona)} aria-labelledby="titulo-osario">${zonaCabecera(osarioZona)}
+      <div class="mesa" data-osario='${osarioJson.replace(/'/g, '&#39;')}' data-inicial='${JSON.stringify(inicial)}'>
+        <div class="mesa-lamina" style="aspect-ratio: ${LIENZO_OSARIO.join(' / ')}">
+${PARTES.map(([p]) => `          <div class="mesa-pieza" data-parte="${p}"><img alt="" width="${LIENZO_OSARIO[0]}" height="${LIENZO_OSARIO[1]}"></div>`).join('\n')}
         </div>
         <div class="mesa-ficha" aria-live="polite">
           <span class="ficha-latin" lang="la" data-quimera="latin"></span>
@@ -230,9 +254,7 @@ ${zoneSections}
           <p data-quimera="texto"></p>
         </div>
         <div class="mesa-mandos">
-          <div class="mesa-parte"><span>Cola</span><button type="button" data-mover="cola" data-paso="-1" aria-label="Cola anterior">‹</button><button type="button" data-mover="cola" data-paso="1" aria-label="Cola siguiente">›</button></div>
-          <div class="mesa-parte"><span>Tronco</span><button type="button" data-mover="tronco" data-paso="-1" aria-label="Tronco anterior">‹</button><button type="button" data-mover="tronco" data-paso="1" aria-label="Tronco siguiente">›</button></div>
-          <div class="mesa-parte"><span>Cabeza</span><button type="button" data-mover="cabeza" data-paso="-1" aria-label="Cabeza anterior">‹</button><button type="button" data-mover="cabeza" data-paso="1" aria-label="Cabeza siguiente">›</button></div>
+${PARTES.map(([p, P]) => `          <div class="mesa-parte"><span>${P}</span><button type="button" data-mover="${p}" data-paso="-1" aria-label="${P} anterior">‹</button><button type="button" data-mover="${p}" data-paso="1" aria-label="${P} siguiente">›</button></div>`).join('\n')}
           <button class="boton boton-hueso" type="button" data-quimera-nueva>Otra quimera</button>
           <button class="boton boton-linea" type="button" data-quimera-guardar>Guardar lámina</button>
         </div>
@@ -242,14 +264,12 @@ ${zoneSections}
     </main>
 ${footer}
 ${dialog}
-    <script type="module" src="${base}/catabasis.js?v=${v['catabasis.js']}"></script>
+    <script type="module" src="${url('catabasis.js')}"></script>
 </body>
 
 </html>
 `;
 
-// ---------- herbolario.html
-const zoneOrder = [...zonas.map(z => z.id), 'osario'];
 const cards = laminas.map(l => {
   const [w, h] = fit(l.w, l.h, 480);
   const texto = [l.vulgar, l.titulo, l.latin, l.autor, l.obra, zoneName[l.zona]].filter(Boolean).join(' ').toLowerCase();
@@ -268,7 +288,7 @@ const herbolario = `${head({
   description: `Las ${laminas.length} láminas de Catábasis, limpias y ampliadas, para descargar. Todas son de dominio público.`,
   path: `${base}/herbolario`,
 })}
-<body class="pagina-herbolario" data-tono="claro">
+<body class="pagina-herbolario">
     <a class="saltar" href="#hojas">Saltar a las láminas</a>
 ${topbar('herbolario')}
 
@@ -279,7 +299,7 @@ ${topbar('herbolario')}
       <div class="filtros">
         <div class="filtros-zonas" role="group" aria-label="Filtrar por zona">
           <button type="button" data-filtro="todas" aria-pressed="true">Todas <span>${laminas.length}</span></button>
-          ${zoneOrder.map(z => `<button type="button" data-filtro="${z}" aria-pressed="false">${esc(zoneName[z])} <span>${laminas.filter(l => l.zona === z).length}</span></button>`).join('\n          ')}
+          ${todasLasZonas.map(z => `<button type="button" data-filtro="${z.id}" aria-pressed="false">${esc(z.nombre)} <span>${laminas.filter(l => l.zona === z.id).length}</span></button>`).join('\n          ')}
         </div>
         <label class="filtros-buscar">
           <span>Buscar</span>
@@ -294,7 +314,7 @@ ${topbar('herbolario')}
     </main>
 ${footer}
 ${dialog}
-    <script type="module" src="${base}/herbolario.js?v=${v['herbolario.js']}"></script>
+    <script type="module" src="${url('herbolario.js')}"></script>
 </body>
 
 </html>
@@ -306,12 +326,8 @@ for (const [name, html] of [['index', index], ['herbolario', herbolario]]) {
 
 await rm(resolve(repo, 'dist'), { recursive: true, force: true });
 await mkdir(out, { recursive: true });
-for (const f of ['catabasis.css', 'herbolario.js', 'tema.js', 'favicon.svg', 'fonts', 'media']) await cp(resolve(app, f), resolve(out, f), { recursive: true });
-// los módulos importan ficha.js: se versiona también para que nunca se mezclen versiones
-const conFicha = async f => (await readFile(resolve(app, f), 'utf8')).replace("from './ficha.js'", `from './ficha.js?v=${v['ficha.js']}'`);
-await writeFile(resolve(out, 'catabasis.js'), await conFicha('catabasis.js'));
-await writeFile(resolve(out, 'herbolario.js'), await conFicha('herbolario.js'));
-await cp(resolve(app, 'ficha.js'), resolve(out, 'ficha.js'));
+for (const f of ['favicon.svg', 'fonts', 'media']) await cp(resolve(app, f), resolve(out, f), { recursive: true });
+for (const [f, { contenido }] of Object.entries(publicado)) await writeFile(resolve(out, f), contenido);
 await writeFile(resolve(out, 'index.html'), index);
 await writeFile(resolve(out, 'herbolario.html'), herbolario);
 
